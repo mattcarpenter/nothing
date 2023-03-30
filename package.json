@@ -21,7 +21,9 @@
     "react-deep-diff": "^0.1.1",
     "react-dom": "18.2.0",
     "react-json-differ": "^1.0.5",
-    "react-json-view-compare": "^2.0.1",
     "typescript": "5.0.2"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.3.0"
   }
 }
