@@ -1,91 +1,77 @@
-import Image from 'next/image'
 import { Inter } from 'next/font/google'
+import fs from 'fs';
+import _ from 'lodash';
+import { Viewer, Differ } from 'json-diff-kit';
+import type { DiffResult } from 'json-diff-kit';
+import Diff from '../components/diff';
+
+import 'json-diff-kit/dist/viewer.css';
 import styles from './page.module.css'
 
-const inter = Inter({ subsets: ['latin'] })
+interface ILogEntry {
+  _resourceType: string;
+  request: {
+    url: string;
+  }
+}
+
+const har = JSON.parse(fs.readFileSync('./data/localhost.har').toString());
+const apiCalls = har.log.entries.filter((entry: ILogEntry) => entry._resourceType !== 'preflight' && entry.request.url.indexOf('http://localhost:9003/api') === 0);
+const states = JSON.parse(fs.readFileSync('./data/log.json').toString());
+
+// lookup states
+for (const apiCall of apiCalls) {
+  const sequence = apiCall.response.headers.find((header: { name: string, value: string }) => header.name === 'z-sequence')?.value;
+  if (sequence) {
+    apiCall.state = states.find((state: { sequence: string }) => state.sequence === sequence);
+  }
+}
+
+const differ = new Differ({
+  detectCircular: true,    // default `true`
+  maxDepth: Infinity,      // default `Infinity`
+  showModifications: true, // default `true`
+  arrayDiffMethod: 'lcs',  // default `"normal"`, but `"lcs"` may be more useful
+});
 
 export default function Home() {
   return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.tsx</code>
-        </p>
-        <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
+    <main>
+      {apiCalls.map((apiCall, index) => {
+        let oldState;
+        if (index > 0 && apiCalls[index - 1].state) {
+          oldState = apiCalls[index-1].state;
+        }
 
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-        <div className={styles.thirteen}>
-          <Image src="/thirteen.svg" alt="13" width={40} height={31} priority />
-        </div>
-      </div>
+        let diff;
+        if (oldState && apiCall.state) {
+         diff = differ.diff(_.omit(oldState, 'sequence'), _.omit(apiCall.state, 'sequence'));
+        }
 
-      <div className={styles.grid}>
-        <a
-          href="https://beta.nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>Explore the Next.js 13 playground.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={inter.className}>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p className={inter.className}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
+        return (
+          <div className={styles.request}>
+            <div>
+              Method: {apiCall.request.method}<br/>
+              URL: {apiCall.request.url}
+              {apiCall.request.postData && (
+                <pre>
+                {apiCall.request.postData.text}
+              </pre>
+              )}<br/>
+              {apiCall.state && (
+                <pre>
+                {JSON.stringify(apiCall.state)}
+              </pre>
+              )}
+              {diff && (
+                <Diff
+                  diff={diff}
+                />
+              ) }
+            </div>
+          </div>
+        );
+      })}
     </main>
   )
 }
