@@ -54,15 +54,10 @@ export default function Home() {
               Method: {apiCall.request.method}<br/>
               URL: {apiCall.request.url}
               {apiCall.request.postData && (
-                <pre>
+                <pre className="req">
                 {apiCall.request.postData.text}
               </pre>
               )}<br/>
-              {apiCall.state && (
-                <pre>
-                {JSON.stringify(apiCall.state)}
-              </pre>
-              )}
               {diff && (
                 <Diff
                   diff={diff}
